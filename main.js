@@ -90,7 +90,7 @@ function createSingleParticleNet() {
     }
 
     const material = new THREE.MeshBasicMaterial({
-        color: 0x00ffff,
+        color: 0xffffff,
         wireframe: true,
         transparent: true,
         opacity: 0.6
