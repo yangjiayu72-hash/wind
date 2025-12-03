@@ -9,7 +9,24 @@ let time = 0;
 function init() {
     // Create scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+
+    // Create gradient background using canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Create radial gradient from center
+    const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+    gradient.addColorStop(0, '#1a1a2e');  // Dark blue center
+    gradient.addColorStop(0.5, '#16213e'); // Medium blue
+    gradient.addColorStop(1, '#0f0f1e');   // Very dark blue edges
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    scene.background = texture;
 
     // Create camera
     camera = new THREE.PerspectiveCamera(
@@ -24,6 +41,23 @@ function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    // Add ambient light for overall illumination
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(ambientLight);
+
+    // Add multiple point lights for better illumination
+    const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+    for (let i = 0; i < 6; i++) {
+        const pointLight = new THREE.PointLight(colors[i], 0.3, 100);
+        const angle = (i / 6) * Math.PI * 2;
+        pointLight.position.set(
+            Math.cos(angle) * 30,
+            Math.sin(angle) * 30,
+            Math.sin(angle * 2) * 20
+        );
+        scene.add(pointLight);
+    }
 
     // Create particle nets
     createParticleNets();
@@ -74,6 +108,39 @@ function createParticleNets() {
     }
 }
 
+// Generate random vibrant color
+function getRandomColor() {
+    const hue = Math.random() * 360;
+    const saturation = 70 + Math.random() * 30; // 70-100%
+    const lightness = 50 + Math.random() * 20;  // 50-70%
+
+    // Convert HSL to RGB
+    const h = hue / 360;
+    const s = saturation / 100;
+    const l = lightness / 100;
+
+    let r, g, b;
+    if (s === 0) {
+        r = g = b = l;
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+
+    return new THREE.Color(r, g, b);
+}
+
 // Create a single particle net (wireframe sphere with deformable geometry)
 function createSingleParticleNet() {
     const geometry = new THREE.IcosahedronGeometry(2, 1);
@@ -89,15 +156,26 @@ function createSingleParticleNet() {
         });
     }
 
-    const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+    // Generate unique random color for this particle
+    const color = getRandomColor();
+
+    const material = new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: 0.5,
         wireframe: true,
         transparent: true,
-        opacity: 0.6
+        opacity: 0.8,
+        metalness: 0.3,
+        roughness: 0.4
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData.originalVertices = originalVertices;
+
+    // Add point light to each particle for glow effect
+    const particleLight = new THREE.PointLight(color, 0.5, 10);
+    mesh.add(particleLight);
 
     return mesh;
 }
